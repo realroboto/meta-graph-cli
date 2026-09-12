@@ -13,6 +13,18 @@ function fakeFetch(body: unknown, status = 200) {
   return Object.assign(fn as unknown as typeof fetch, { calls });
 }
 
+// A fake fetch that returns a canned sequence of Responses, one per call, and
+// records the calls. Used to drive --paginate across a multi-page collection.
+function fakeFetchSeq(pages: { body: unknown; status?: number }[]) {
+  const calls: { url: string; init: RequestInit | undefined }[] = [];
+  const fn = async (url: string | URL | Request, init?: RequestInit) => {
+    const page = pages[calls.length];
+    calls.push({ url: String(url), init });
+    return new Response(JSON.stringify(page.body), { status: page.status ?? 200 });
+  };
+  return Object.assign(fn as unknown as typeof fetch, { calls });
+}
+
 // A fetch that must never run: fails the test if called.
 function neverFetch() {
   const calls: unknown[] = [];
@@ -154,6 +166,51 @@ test('the error contract holds on writes: a 200-with-error POST exits non-zero',
     env: TOKEN,
   });
 
+  assert.notEqual(res.code, 0);
+  assert.equal(res.stdout, '');
+  assert.equal(res.stderr, JSON.stringify(err));
+});
+
+test('--paginate follows paging.next to the end, emitting one JSON document per page', async () => {
+  const p1 = { data: [1], paging: { next: 'https://graph.facebook.com/v26.0/me/x?after=A' } };
+  const p2 = { data: [2], paging: { next: 'https://graph.facebook.com/v26.0/me/x?after=B' } };
+  const p3 = { data: [3] }; // no paging.next -> last page
+  const fetch = fakeFetchSeq([{ body: p1 }, { body: p2 }, { body: p3 }]);
+  const res = await run(['GET', '/me/x', '--paginate'], { fetch, env: TOKEN });
+
+  assert.equal(fetch.calls.length, 3);
+  assert.equal(fetch.calls[1].url, p1.paging.next);
+  assert.equal(fetch.calls[2].url, p2.paging.next);
+  assert.equal(res.code, 0);
+  assert.equal(res.stderr, '');
+  assert.equal(res.stdout, [p1, p2, p3].map((p) => JSON.stringify(p)).join('\n'));
+});
+
+test('pagination stops when paging.next is absent', async () => {
+  const only = { data: [1] };
+  const fetch = fakeFetchSeq([{ body: only }]);
+  const res = await run(['GET', '/me/x', '--paginate'], { fetch, env: TOKEN });
+
+  assert.equal(fetch.calls.length, 1);
+  assert.equal(res.stdout, JSON.stringify(only));
+});
+
+test('without --paginate exactly one request is made even when paging.next is present', async () => {
+  const page = { data: [1], paging: { next: 'https://graph.facebook.com/v26.0/me/x?after=A' } };
+  const fetch = fakeFetchSeq([{ body: page }]);
+  const res = await run(['GET', '/me/x'], { fetch, env: TOKEN });
+
+  assert.equal(fetch.calls.length, 1);
+  assert.equal(res.stdout, JSON.stringify(page));
+});
+
+test('a failing page mid-pagination exits non-zero rather than truncating', async () => {
+  const p1 = { data: [1], paging: { next: 'https://graph.facebook.com/v26.0/me/x?after=A' } };
+  const err = { message: 'Rate limit', type: 'OAuthException', code: 4 };
+  const fetch = fakeFetchSeq([{ body: p1 }, { body: { error: err }, status: 200 }]);
+  const res = await run(['GET', '/me/x', '--paginate'], { fetch, env: TOKEN });
+
+  assert.equal(fetch.calls.length, 2);
   assert.notEqual(res.code, 0);
   assert.equal(res.stdout, '');
   assert.equal(res.stderr, JSON.stringify(err));

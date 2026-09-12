@@ -43,6 +43,12 @@ async function renderResponse(res: Response): Promise<Result> {
   return { stdout: JSON.stringify(body), stderr: '', code: 0 };
 }
 
+// Cursor-based pagination: paging.next is a full absolute URL that carries the
+// next cursor. Absent -> last page. https://developers.facebook.com/docs/graph-api/results
+function nextPage(stdout: string): string | undefined {
+  return JSON.parse(stdout)?.paging?.next;
+}
+
 export async function run(argv: string[], { fetch, env }: Deps): Promise<Result> {
   if (argv.length === 0 || argv.includes('--help')) {
     return { stdout: HELP, stderr: '', code: 0 };
@@ -51,9 +57,13 @@ export async function run(argv: string[], { fetch, env }: Deps): Promise<Result>
   const [verb, path, ...rest] = argv;
 
   let version = API_VERSION;
+  let paginate = false;
   const params = new URLSearchParams();
   for (const arg of rest) {
-    if (arg === '--paginate') continue; // reserved; #7 owns it
+    if (arg === '--paginate') {
+      paginate = true;
+      continue;
+    }
     const eq = arg.indexOf('=');
     if (eq === -1) continue; // not a --k=v flag
     const key = arg.slice(2, eq); // strip leading --
@@ -79,13 +89,24 @@ export async function run(argv: string[], { fetch, env }: Deps): Promise<Result>
   // URLSearchParams as the body makes fetch set application/x-www-form-urlencoded.
   const isGet = verb.toUpperCase() === 'GET';
   const query = isGet ? params.toString() : '';
-  const url = `${GRAPH_HOST}/${version}${path}${query ? `?${query}` : ''}`;
-
-  const res = await fetch(url, {
+  const init = {
     method: verb,
     headers: { Authorization: `Bearer ${token}` },
     ...(isGet ? {} : { body: params }),
-  });
+  };
 
-  return renderResponse(res);
+  // One request unless --paginate; then follow paging.next until it runs out,
+  // each page through the same renderResponse checkpoint, so a failing page
+  // fails through the contract instead of silently truncating. Every page is
+  // buffered before returning (ADR-0001), emitted as one JSON document each.
+  let url: string | undefined = `${GRAPH_HOST}/${version}${path}${query ? `?${query}` : ''}`;
+  const pages: string[] = [];
+  while (url) {
+    const rendered = await renderResponse(await fetch(url, init));
+    if (rendered.code !== 0) return rendered;
+    pages.push(rendered.stdout);
+    url = paginate ? nextPage(rendered.stdout) : undefined;
+  }
+
+  return { stdout: pages.join('\n'), stderr: '', code: 0 };
 }
