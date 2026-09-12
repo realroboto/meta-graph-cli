@@ -53,7 +53,7 @@ Graph API and Marketing API are versioned on **separate changelogs with differen
 | [Graph API](https://developers.facebook.com/docs/graph-api/changelog/versions/) | v26.0 (2026-07-29) | what `fbg` targets: businesses, system users, assets, audiences, webhooks |
 | [Marketing API](https://developers.facebook.com/docs/marketing-api/marketing-api-changelog) | v25.0 (2026-02-18) | no v26.0 changelog published; expiries are far shorter (v24.0 ends 2026-10-06) |
 
-Paths under `/act_<id>/…` are Marketing API. Whether they answer under `/v26.0/` is **measured, not assumed** — see `docs/SPEC.md`. Use `--api-version` on those paths if they do not.
+Paths under `/act_<id>/…` are Marketing API. **Measured (2026-09-12): `/act_<id>/campaigns` answers under `v26.0`, read and write** — `GET` returned a normal (empty) campaign list and `POST` (create) then `DELETE` on the returned campaign all succeeded against a live ad account under the default version, even though no v26.0 Marketing changelog is published. Only `/campaigns` was exercised; other Marketing paths are unverified but resolve through the same `/v26.0/` namespace. The global constant stays `v26.0` and no `--api-version` override was needed — it stays available per call if a Marketing path ever diverges. See `docs/SPEC.md`.
 
 `v26.0` also removed `pretty`, `debug`, `date_format`, legacy `If-None-Match`, and root `GET /?ids=`. `fbg` depends on none of them. Those removals reach **every** still-supported version on 2026-10-27, so pinning an older version buys nothing.
 
