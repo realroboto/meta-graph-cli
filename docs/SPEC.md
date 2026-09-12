@@ -130,7 +130,9 @@ The Marketing-track measurement (#8) is a **manual network spike**, not part of 
 
 ## Out of scope
 
-Endpoint curation (field/type/enum validation) · OAuth / Device Login / token exchange / automatic token minting · token refresh or rotation · storing ids or defaults · OS keychain / secret store (the `0600` file is the scope) · multiple credential profiles · cache, retry, backoff, rate-limit handling · file upload / `multipart` · batch and multi-get · agent skill · any change to the vmCODE repo.
+Endpoint curation (field/type/enum validation) · OAuth / Device Login / token exchange / automatic token minting · token refresh or rotation · storing ids or defaults · OS keychain / secret store (the `0600` file is the scope) · multiple credential profiles · cache, retry, backoff, rate-limit handling · file upload / `multipart` · batch and multi-get · any change to the vmCODE repo.
+
+The **CLI** still curates nothing at runtime — `run` stays a pure passthrough with no endpoint table. A companion **`skills/fbg/`** gap-map skill (task→command, each row grounded in Meta's own reference) ships beside the CLI as documentation, not behavior; it neither validates nor narrows the routes `fbg` can reach.
 
 ## Consumer
 
