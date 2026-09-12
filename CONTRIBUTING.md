@@ -34,7 +34,7 @@ The procedure for every change. Run all steps in order, every session. One path 
 
 Three invariants this repo is built on. A change that breaks one is a design change, not a fix — raise it as an issue first.
 
-- **One seam.** Tests go through `run(argv, { fetch, env })` with an injected `fetch`. No test touches the network. `bin/fbg.ts` stays a shell: streams out, exit code, nothing else.
+- **One seam.** Tests go through `run(argv, { fetch, env, io?, fs? })` with injected I/O. No test touches the network, the tty, or the disk. `bin/fbg.ts` stays the composition root: it builds the real `io`/`fs` adapters, streams out, exits with the code — no branching business logic.
 - **The error contract.** A Graph response carrying an `error` body — including one with HTTP 200 — exits non-zero with the `error` on stderr. Every change to response handling keeps a test on that case.
 - **No build step.** The package publishes `.ts` raw and Node strips types at runtime. `tsconfig.json` sets `erasableSyntaxOnly`, so write only erasable syntax: `enum`, `namespace`, and parameter properties pass typecheck and fail at runtime. A `dist/` appearing in the tree means the build came back.
 
