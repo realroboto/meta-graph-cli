@@ -65,9 +65,7 @@ Graph API and Marketing API are versioned on **separate changelogs with differen
 | Graph API | v26.0 (2026-07-29) | what `fbg` targets: businesses, system users, assets, audiences, webhooks |
 | Marketing API | v25.0 (2026-02-18) | no v26.0 changelog published; expiries far shorter (v24.0 ends 2026-10-06) |
 
-Paths under `/act_<id>/…` are Marketing API. **Whether they answer under `/v26.0/` is measured, not assumed** — see the spike, [issue #8](https://github.com/realroboto/meta-graph-cli/issues/8). If they do not, this table records which version they need and the global constant stays on Graph's; callers use `--api-version` on those paths.
-
-> **Open question (until #8 lands):** does `/act_<id>/…` answer under `v26.0`? Measured against a real ad account, read and write. This section is rewritten with the result then.
+Paths under `/act_<id>/…` are Marketing API. **Measured under [#8](https://github.com/realroboto/meta-graph-cli/issues/8) (2026-09-12): `/act_<id>/campaigns` answers under `v26.0`, read and write.** Against a live ad account, `GET /act_<id>/campaigns` returned a normal (empty) campaign list and `POST /act_<id>/campaigns` (create) then a `DELETE` on the returned campaign all succeeded under the default `v26.0` constant — despite no v26.0 Marketing changelog being published. Only `/campaigns` was exercised; other Marketing paths are unverified but resolve through the same `/v26.0/` namespace. So the global constant stays `v26.0` and no `--api-version` override was needed for that call; the escape hatch stays available per call if a Marketing path ever diverges.
 
 `v26.0` also removed `pretty`, `debug`, `date_format`, legacy `If-None-Match`, and root `GET /?ids=`. `fbg` depends on none of them; those removals reach every still-supported version on 2026-10-27, so pinning older buys nothing.
 
