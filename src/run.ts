@@ -74,12 +74,17 @@ export async function run(argv: string[], { fetch, env }: Deps): Promise<Result>
     };
   }
 
-  const query = params.toString();
+  // Flags are query params on GET, form body on every other verb, so their
+  // values never land in proxy logs or shell-history echoes. Passing the
+  // URLSearchParams as the body makes fetch set application/x-www-form-urlencoded.
+  const isGet = verb.toUpperCase() === 'GET';
+  const query = isGet ? params.toString() : '';
   const url = `${GRAPH_HOST}/${version}${path}${query ? `?${query}` : ''}`;
 
   const res = await fetch(url, {
     method: verb,
     headers: { Authorization: `Bearer ${token}` },
+    ...(isGet ? {} : { body: params }),
   });
 
   return renderResponse(res);
