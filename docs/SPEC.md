@@ -99,7 +99,7 @@ The return is **buffered** (`{ stdout, ... }`), not streamed — see [ADR-0001](
 ## Stack
 
 - Node ≥ 24, zero runtime dependencies (native `fetch`).
-- TypeScript 7 strict. **No build step**: Node type-strips `.ts` at runtime; publish `.ts` raw, no `dist/`.
+- TypeScript 7 strict. **Buildless dev**: Node type-strips `.ts` at runtime. **Publish compiles**: `prepack` emits `dist/*.js` (`tsconfig.build.json`, `rewriteRelativeImportExtensions`) and the tarball ships that, not `.ts` — Node refuses to strip types under `node_modules`, so a raw-`.ts` dependency will not run once installed. `dist/` is git-ignored.
 - `tsconfig` sets `erasableSyntaxOnly` — no `enum`, `namespace`, or parameter properties (they pass typecheck, fail at runtime).
 - Biome for lint + format. pnpm 12 pinned via `packageManager`.
 

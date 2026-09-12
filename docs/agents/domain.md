@@ -5,7 +5,7 @@ How the engineering skills should consume this repo's domain documentation when 
 ## Before exploring, read these
 
 - **`README.md`** at the repo root — the orientation doc. `CLAUDE.md` and `AGENTS.md` are symlinks to it, so all three are one file; edit `README.md`.
-- **`CONTRIBUTING.md`** — the procedure for every change, plus the **Standing rules**: one seam, the error contract, no build step. Those three are invariants, not preferences.
+- **`CONTRIBUTING.md`** — the procedure for every change, plus the **Standing rules**: one seam, the error contract, buildless dev (publish-time compile). Those three are invariants, not preferences.
 - **`docs/SPEC.md`** — behavior source of truth, once it exists.
 - **`CONTEXT.md`** at the repo root and **`docs/adr/`** — neither exists yet. If a file named here is absent, **proceed silently**. `/domain-modeling` creates them lazily when terms or decisions actually get resolved; don't scaffold them upfront.
 
@@ -34,4 +34,4 @@ Terms this repo already leans on, defined in `README.md` until a `CONTEXT.md` ex
 
 If your output contradicts a Standing rule in `CONTRIBUTING.md` or a decision in `docs/SPEC.md`, surface it explicitly rather than silently overriding:
 
-> _Contradicts the "no build step" standing rule — but worth reopening because…_
+> _Contradicts the "buildless dev" standing rule — but worth reopening because…_

@@ -24,9 +24,9 @@ Flags become query params on `GET`, form body on every other verb.
 npm i -g meta-graph-cli    # installs the `fbg` bin
 ```
 
-Needs **Node ≥ 24** — `fbg` ships as TypeScript and runs on Node's native type-stripping, so there is no build step and no bundle.
+Needs **Node ≥ 24**. Dev runs the `.ts` sources directly on Node's native type-stripping — no build step, no bundle. The **published** package ships compiled `.js` (emitted at publish time by `prepack`, never committed), because [Node refuses to strip types under `node_modules`](https://nodejs.org/api/typescript.html) — "To discourage package authors from publishing packages written in TypeScript" — so a raw-`.ts` dependency cannot run once installed. Zero runtime dependencies still holds; the tarball carries only `dist/`.
 
-Type-stripping is unflagged from 22.18 onward, so 22.x would technically run it. The floor is 24 anyway: that is the only version CI tests and the only one the downstream image runs, and an advertised floor we never test is a promise we cannot keep.
+Type-stripping is unflagged from 22.18 onward, so 22.x would technically run the sources in dev. The floor is 24 anyway: that is the only version CI tests and the only one the downstream image runs, and an advertised floor we never test is a promise we cannot keep.
 
 ## Auth
 
@@ -95,7 +95,7 @@ Splitting the seam into `buildRequest` + `renderResponse` was considered and rej
 - Test through the seam. Inject a fake `fetch` and `env`. Use no real network.
 - Cover the error contract explicitly: a 200 response carrying an `error` body must exit non-zero.
 - `tsconfig.json` sets **`erasableSyntaxOnly`** — write only syntax type-stripping can erase. It bars `enum`, `namespace`, and parameter properties, which would otherwise pass typecheck and fail at runtime.
-- The package publishes `.ts` raw: no `dist/`, no build on publish. Keep it that way.
+- Dev is buildless: edit and run `.ts` directly. The publish step (`prepack`) compiles `src`/`bin` to `dist/*.js` via `tsconfig.build.json` (`rewriteRelativeImportExtensions` turns the `.ts` import specifiers into `.js`); `dist/` is git-ignored and only the tarball carries it. This is forced — Node will not type-strip under `node_modules`. Don't commit `dist/`, and don't add a dev build.
 - Before commit: `pnpm typecheck` (tsc --noEmit) · `pnpm lint` (biome) · `pnpm test`.
 - Fix lint by fixing the code it flags — never `biome --unsafe`, never disable a rule to clear it.
 
@@ -109,4 +109,4 @@ Splitting the seam into `buildRequest` + `renderResponse` was considered and rej
 
 ## Status
 
-Writes landed (#6). `src/run.ts` is the seam and `bin/fbg.ts` is its shell; `fbg GET <path>` reads and `fbg POST`/`DELETE <path>` write the Graph API end to end under the error contract. Non-GET verbs send flags as an `application/x-www-form-urlencoded` body, so the query string stays empty. Pagination landed (#7): `--paginate` follows `paging.next` to the end, one JSON document per page, each through the `renderResponse` checkpoint. The toolchain is scaffolded (#4) and the three gates run green. Guided auth landed (#17): `fbg auth login|status|logout` save/introspect/remove a system-user token, env winning over a `0600` credential file, all through the seam with injected `io`/`fs`. The spec is [issue #1](https://github.com/realroboto/meta-graph-cli/issues/1). Next: publish 1.0.0 to npm (#9).
+Writes landed (#6). `src/run.ts` is the seam and `bin/fbg.ts` is its shell; `fbg GET <path>` reads and `fbg POST`/`DELETE <path>` write the Graph API end to end under the error contract. Non-GET verbs send flags as an `application/x-www-form-urlencoded` body, so the query string stays empty. Pagination landed (#7): `--paginate` follows `paging.next` to the end, one JSON document per page, each through the `renderResponse` checkpoint. The toolchain is scaffolded (#4) and the three gates run green. Guided auth landed (#17): `fbg auth login|status|logout` save/introspect/remove a system-user token, env winning over a `0600` credential file, all through the seam with injected `io`/`fs`. The spec is [issue #1](https://github.com/realroboto/meta-graph-cli/issues/1). Packaging for 1.0.0 landed (#9): `bin` maps `fbg` to the compiled entry, `prepack` emits `dist/`, and `npm pack` + a clean global install give a working `fbg --help` and a live `GET` under the error contract — verified locally. The `npm publish` itself is pending credentials (hand-back per #9); closing #1 follows the publish.

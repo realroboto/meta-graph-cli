@@ -5,5 +5,7 @@ node_modules/
 .env
 .env.*
 
-# no dist/ on purpose — the package publishes .ts raw and Node strips types at
-# runtime. If a build output ever appears here, the build step came back.
+# build output — emitted at publish time (prepack), never committed. Dev runs
+# the .ts sources directly via Node type-stripping; only the published tarball
+# carries .js, because Node refuses to strip types under node_modules.
+dist/
