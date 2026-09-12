@@ -95,4 +95,4 @@ Splitting the seam into `buildRequest` + `renderResponse` was considered and rej
 
 ## Status
 
-Writes landed (#6). `src/run.ts` is the seam and `bin/fbg.ts` is its shell; `fbg GET <path>` reads and `fbg POST`/`DELETE <path>` write the Graph API end to end under the error contract. Non-GET verbs send flags as an `application/x-www-form-urlencoded` body, so the query string stays empty. The toolchain is scaffolded (#4) and the three gates run green. The spec is [issue #1](https://github.com/realroboto/meta-graph-cli/issues/1). Next: pagination (#7).
+Writes landed (#6). `src/run.ts` is the seam and `bin/fbg.ts` is its shell; `fbg GET <path>` reads and `fbg POST`/`DELETE <path>` write the Graph API end to end under the error contract. Non-GET verbs send flags as an `application/x-www-form-urlencoded` body, so the query string stays empty. Pagination landed (#7): `--paginate` follows `paging.next` to the end, one JSON document per page, each through the `renderResponse` checkpoint. The toolchain is scaffolded (#4) and the three gates run green. The spec is [issue #1](https://github.com/realroboto/meta-graph-cli/issues/1). Next: publish 1.0.0 to npm (#9).
