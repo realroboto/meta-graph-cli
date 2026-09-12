@@ -24,7 +24,9 @@ Flags become query params on `GET`, form body on every other verb.
 npm i -g meta-graph-cli    # installs the `fbg` bin
 ```
 
-Needs **Node ≥ 22.18** — `fbg` ships as TypeScript and runs on Node's native type-stripping, so there is no build step and no bundle.
+Needs **Node ≥ 24** — `fbg` ships as TypeScript and runs on Node's native type-stripping, so there is no build step and no bundle.
+
+Type-stripping is unflagged from 22.18 onward, so 22.x would technically run it. The floor is 24 anyway: that is the only version CI tests and the only one the downstream image runs, and an advertised floor we never test is a promise we cannot keep.
 
 ## Auth
 
