@@ -35,7 +35,66 @@ function neverFetch() {
   return Object.assign(fn as unknown as typeof fetch, { calls });
 }
 
+// A fake prompt that hands back canned answers and records how it was asked
+// (label + whether the input was hidden). No tty: every auth test crosses `run`.
+function fakeIo(answers: string[]) {
+  const prompts: { label: string; hidden: boolean }[] = [];
+  let i = 0;
+  return {
+    prompts,
+    prompt: async (label: string, opts?: { hidden?: boolean }) => {
+      prompts.push({ label, hidden: Boolean(opts?.hidden) });
+      return answers[i++];
+    },
+  };
+}
+
+// An in-memory credential store standing in for the real filesystem, recording
+// the mkdir/chmod modes so a test can assert the 0700 dir and 0600 file perms.
+function fakeFs(initial: Record<string, string> = {}) {
+  const files = new Map<string, string>(Object.entries(initial));
+  const mkdirs: { path: string; mode: number }[] = [];
+  const chmods: { path: string; mode: number }[] = [];
+  return {
+    files,
+    mkdirs,
+    chmods,
+    readFile: async (path: string) => files.get(path) ?? null,
+    writeFile: async (path: string, data: string) => {
+      files.set(path, data);
+    },
+    mkdir: async (path: string, opts: { recursive: boolean; mode: number }) => {
+      mkdirs.push({ path, mode: opts.mode });
+    },
+    chmod: async (path: string, mode: number) => {
+      chmods.push({ path, mode });
+    },
+    rm: async (path: string) => {
+      files.delete(path);
+    },
+  };
+}
+
 const TOKEN = { META_ACCESS_TOKEN: 'tok_abc' };
+
+// Home-only env: no token in the environment, so the credential file is the
+// only source. The resolved credential path for this env.
+const HOME_ENV = { HOME: '/home/u' };
+const CRED_PATH = '/home/u/.config/fbg/credentials.json';
+
+// A valid /debug_token payload and the /me identity behind it, in call order.
+const DEBUG_OK = {
+  data: {
+    app_id: '555',
+    application: 'My App',
+    type: 'SYSTEM_USER',
+    is_valid: true,
+    scopes: ['ads_management', 'business_management'],
+    expires_at: 0,
+    data_access_expires_at: 0,
+  },
+};
+const ME_OK = { id: '42', name: 'Sys User' };
 
 test('GET builds the URL from the version constant and passes flags as query params', async () => {
   const fetch = fakeFetch({ id: '1', name: 'X' });
@@ -223,4 +282,131 @@ test('--help states the command shape, exits 0, and never calls fetch', async ()
   assert.equal(fetch.calls.length, 0);
   assert.equal(res.code, 0);
   assert.match(res.stdout, /fbg <VERB> <path>/);
+});
+
+test('auth login prompts for the token hidden, validates it, and saves it 0600', async () => {
+  const fetch = fakeFetchSeq([{ body: DEBUG_OK }, { body: ME_OK }]);
+  const io = fakeIo(['tok_new']);
+  const fs = fakeFs();
+  const res = await run(['auth', 'login'], { fetch, env: HOME_ENV, io, fs });
+
+  assert.equal(res.code, 0);
+  assert.equal(io.prompts.length, 1);
+  assert.equal(io.prompts[0].hidden, true);
+  // token was validated: debug_token first (input_token carries the token), then /me
+  assert.match(fetch.calls[0].url, /\/debug_token\?input_token=tok_new/);
+  assert.match(fetch.calls[1].url, /\/me\?fields=id,name/);
+  // persisted, with the directory 0700 and the file 0600
+  assert.equal(JSON.parse(fs.files.get(CRED_PATH) ?? '{}').token, 'tok_new');
+  assert.deepEqual(fs.chmods, [{ path: CRED_PATH, mode: 0o600 }]);
+  assert.equal(fs.mkdirs[0].mode, 0o700);
+  // summary shows identity/app/scopes; the token itself never surfaces
+  assert.match(res.stdout, /Sys User/);
+  assert.match(res.stdout, /ads_management/);
+  assert.doesNotMatch(res.stdout, /tok_new/);
+  assert.doesNotMatch(res.stderr, /tok_new/);
+});
+
+test('auth login writes nothing when the token is invalid', async () => {
+  const invalid = { data: { is_valid: false, error: { code: 190, message: 'bad token' } } };
+  const fetch = fakeFetchSeq([{ body: invalid }]);
+  const io = fakeIo(['tok_bad']);
+  const fs = fakeFs();
+  const res = await run(['auth', 'login'], { fetch, env: HOME_ENV, io, fs });
+
+  assert.notEqual(res.code, 0);
+  assert.equal(res.stdout, '');
+  assert.equal(fs.files.size, 0);
+  assert.equal(fs.chmods.length, 0);
+});
+
+test('auth login surfaces a debug_token error and writes nothing', async () => {
+  const err = { message: 'Invalid OAuth access token', type: 'OAuthException', code: 190 };
+  const fetch = fakeFetchSeq([{ body: { error: err }, status: 200 }]);
+  const io = fakeIo(['tok_bad']);
+  const fs = fakeFs();
+  const res = await run(['auth', 'login'], { fetch, env: HOME_ENV, io, fs });
+
+  assert.notEqual(res.code, 0);
+  assert.equal(res.stderr, JSON.stringify(err));
+  assert.equal(fs.files.size, 0);
+});
+
+test('auth status introspects the resolved token: identity, scopes, expiry', async () => {
+  const fetch = fakeFetchSeq([{ body: DEBUG_OK }, { body: ME_OK }]);
+  const res = await run(['auth', 'status'], { fetch, env: TOKEN });
+
+  assert.equal(res.code, 0);
+  const summary = JSON.parse(res.stdout);
+  assert.equal(summary.identity.id, '42');
+  assert.equal(summary.app_id, '555');
+  assert.deepEqual(summary.scopes, ['ads_management', 'business_management']);
+  assert.equal(summary.expires_at, 0);
+  assert.doesNotMatch(res.stdout, /tok_abc/);
+});
+
+test('auth status prefers the env token over the saved file', async () => {
+  const fetch = fakeFetchSeq([{ body: DEBUG_OK }, { body: ME_OK }]);
+  const fs = fakeFs({ [CRED_PATH]: JSON.stringify({ token: 'tok_file' }) });
+  await run(['auth', 'status'], { fetch, env: { ...TOKEN, HOME: '/home/u' }, io: fakeIo([]), fs });
+
+  // env token wins: it is the one carried to debug_token, not the file token
+  assert.match(fetch.calls[0].url, /input_token=tok_abc/);
+});
+
+test('auth status falls back to the saved file when the env has no token', async () => {
+  const fetch = fakeFetchSeq([{ body: DEBUG_OK }, { body: ME_OK }]);
+  const fs = fakeFs({ [CRED_PATH]: JSON.stringify({ token: 'tok_file' }) });
+  const res = await run(['auth', 'status'], { fetch, env: HOME_ENV, io: fakeIo([]), fs });
+
+  assert.equal(res.code, 0);
+  assert.match(fetch.calls[0].url, /input_token=tok_file/);
+});
+
+test('a regular command uses the saved file token when the env has none', async () => {
+  const fetch = fakeFetch({ id: '1' });
+  const fs = fakeFs({ [CRED_PATH]: JSON.stringify({ token: 'tok_file' }) });
+  await run(['GET', '/me'], { fetch, env: HOME_ENV, io: fakeIo([]), fs });
+
+  const headers = new Headers(fetch.calls[0].init?.headers);
+  assert.equal(headers.get('authorization'), 'Bearer tok_file');
+});
+
+test('auth status with no token anywhere fails with its own message and never calls fetch', async () => {
+  const fetch = neverFetch();
+  const fs = fakeFs();
+  const res = await run(['auth', 'status'], { fetch, env: HOME_ENV, io: fakeIo([]), fs });
+
+  assert.equal(fetch.calls.length, 0);
+  assert.notEqual(res.code, 0);
+  assert.match(res.stderr, /META_ACCESS_TOKEN/);
+});
+
+test('auth logout removes the saved credential and reports it', async () => {
+  const fetch = neverFetch();
+  const fs = fakeFs({ [CRED_PATH]: JSON.stringify({ token: 'tok_file' }) });
+  const res = await run(['auth', 'logout'], { fetch, env: HOME_ENV, io: fakeIo([]), fs });
+
+  assert.equal(res.code, 0);
+  assert.equal(fs.files.has(CRED_PATH), false);
+  assert.equal(JSON.parse(res.stdout).removed, true);
+  assert.equal(fetch.calls.length, 0);
+});
+
+test('auth logout is idempotent when nothing is saved', async () => {
+  const fetch = neverFetch();
+  const fs = fakeFs();
+  const res = await run(['auth', 'logout'], { fetch, env: HOME_ENV, io: fakeIo([]), fs });
+
+  assert.equal(res.code, 0);
+  assert.equal(JSON.parse(res.stdout).removed, false);
+});
+
+test('an unknown auth subcommand fails with usage and never calls fetch', async () => {
+  const fetch = neverFetch();
+  const res = await run(['auth', 'wibble'], { fetch, env: TOKEN, io: fakeIo([]), fs: fakeFs() });
+
+  assert.equal(fetch.calls.length, 0);
+  assert.notEqual(res.code, 0);
+  assert.match(res.stderr, /login\|status\|logout/);
 });
