@@ -26,11 +26,15 @@ fbg DELETE /<id>
 Everything lives behind a single exported function:
 
 ```ts
-run(argv: string[], deps: { fetch: typeof fetch; env: Record<string, string | undefined> }):
-  Promise<{ stdout: string; stderr: string; code: number }>
+run(argv: string[], deps: {
+  fetch: typeof fetch;
+  env: Record<string, string | undefined>;
+  io?: Io;            // prompt(label, { hidden }) — only auth login uses it
+  fs?: CredentialFs;  // readFile/writeFile/mkdir/chmod/rm — credential store
+}): Promise<{ stdout: string; stderr: string; code: number }>
 ```
 
-Pure: argv parsing, URL building, token injection, pagination, the error contract. All I/O is injected, so the whole CLI is testable with no network. `bin/fbg.ts` is a shell: call `run`, write the two streams, exit with the code — nothing else.
+Pure: argv parsing, URL building, token injection, pagination, the error contract, and the auth credential orchestration (path, 0700 dir, 0600 file). All I/O is injected — network via `fetch`, the terminal via `io`, the disk via `fs` — so the whole CLI is testable with no network, tty, or disk. `io`/`fs` are optional so the passthrough verbs need only `{ fetch, env }`; the auth subcommands require them. `bin/fbg.ts` is a shell: it constructs the real `io` (a muted-echo tty prompt) and `fs` (the credential-file adapter over `node:fs/promises`), calls `run`, writes the two streams, and exits with the code — the only impure layer, holding no branching business logic.
 
 **Rejected:** splitting the exported seam into `buildRequest` + `renderResponse`. Pagination couples them; testing them apart leaves that coupling uncovered.
 
@@ -49,7 +53,24 @@ Applied once, at `renderResponse`. Every response path inherits it.
 
 ## Auth
 
-One env var: `META_ACCESS_TOKEN`, sent as `Authorization: Bearer`. No OAuth, no credential file, no login command. Deliberately the **same** system-user token Meta's official `meta` CLI reads — one credential for both. A **missing token fails with its own message and never calls `fetch`**.
+The credential is a Meta **system-user token**, sent as `Authorization: Bearer`. It resolves from two sources, **env first, then file**:
+
+1. `META_ACCESS_TOKEN` — deliberately the **same** token Meta's official `meta` CLI reads, so a container that exports it behaves exactly as before.
+2. A saved credential file at `$XDG_CONFIG_HOME/fbg/credentials.json` (falling back to `~/.config/fbg/credentials.json`), written by `fbg auth login`.
+
+A **missing token** (neither source) **fails with its own message and never calls `fetch`**.
+
+### `fbg auth <sub>` — guided credential management
+
+Its own dispatch, ahead of the VERB+path passthrough, so `auth` is never read as an HTTP verb.
+
+- `fbg auth login` — prompts for the token with the terminal echo muted, validates it live (`GET /debug_token` + `GET /me`), prints an identity/app/scopes/expiry summary, then persists it (dir `0700`, file `0600`). An invalid token **writes nothing**. The summary never contains the token.
+- `fbg auth status` — introspects the resolved token; read-only.
+- `fbg auth logout` — removes the saved file; idempotent, reports whether one was there.
+
+`/debug_token` authorizes with the token as a Bearer header; `input_token` rides the query string because that endpoint is GET-only and reads it there. Every auth response passes through the same `renderResponse` error contract (an `error` body, a status ≥ 400, or `is_valid: false` → exit non-zero, error on stderr). No credential secret is persisted beyond the token itself — no ids or defaults, since the token alone is a discovery root (`/me`, `/me/businesses`, `/me/accounts`, `/me/adaccounts` → `/act_<id>/campaigns`).
+
+**Not OAuth, and deliberately so.** Meta's only CLI-shaped OAuth (Device Login) yields a ~60-day expiring *user* token plus an embedded App ID — a regression for a container-baked automation CLI, whose correct credential is the non-expiring system-user token. The saved file is **plaintext on disk at `0600`**; `META_ACCESS_TOKEN` remains the option for anyone who does not want a token on disk.
 
 ## API version
 
@@ -93,6 +114,11 @@ Cases:
 - `--api-version` overrides the constant.
 - Missing token fails with its own message, never calls `fetch`.
 - Token present → `Authorization: Bearer` header.
+- `auth login` prompts hidden, validates, and on success saves the token (dir `0700`, file `0600`); an invalid token writes nothing.
+- `auth status` introspects the resolved token; `META_ACCESS_TOKEN` wins over the saved file, and the file fills in when the env is empty.
+- The token never appears on stdout or stderr.
+- `auth logout` removes the saved file and is idempotent when nothing is saved.
+- An unknown `auth` subcommand fails with usage and never calls `fetch`.
 - 200-with-`error` body → exit ≠ 0, `error` on stderr *(the case that justifies the project)*.
 - Status ≥ 400 → same.
 - Success → compact JSON on stdout, exit 0.
@@ -104,7 +130,7 @@ The Marketing-track measurement (#8) is a **manual network spike**, not part of 
 
 ## Out of scope
 
-Endpoint curation (field/type/enum validation) · OAuth / token exchange / login · cache, retry, backoff, rate-limit handling · file upload / `multipart` · batch and multi-get · agent skill · any change to the vmCODE repo.
+Endpoint curation (field/type/enum validation) · OAuth / Device Login / token exchange / automatic token minting · token refresh or rotation · storing ids or defaults · OS keychain / secret store (the `0600` file is the scope) · multiple credential profiles · cache, retry, backoff, rate-limit handling · file upload / `multipart` · batch and multi-get · agent skill · any change to the vmCODE repo.
 
 ## Consumer
 

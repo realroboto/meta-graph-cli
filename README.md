@@ -30,13 +30,27 @@ Type-stripping is unflagged from 22.18 onward, so 22.x would technically run it.
 
 ## Auth
 
-One env var, no login command, no credential file:
+The credential is a Meta **system-user token**. Supply it either way — the env var wins over the saved file, so CI stays unchanged:
 
 ```bash
-export META_ACCESS_TOKEN=...   # Meta system user token
+export META_ACCESS_TOKEN=...   # Meta system user token (same token the official `meta` CLI reads)
 ```
 
-Deliberately the **same** token Meta's official `meta` CLI reads, so there is one credential for both. Mint it in Business Suite → Settings → Users → System Users → Admin → Generate Token, with the app added as App Admin. Scopes: `business_management`, `ads_management`, `pages_show_list`, `pages_read_engagement`, `pages_manage_ads`, `catalog_management`, `read_insights`.
+or save it once with the guided command:
+
+```bash
+fbg auth login     # prompts for the token (hidden), validates it, saves it 0600
+fbg auth status    # shows the current token: identity, app, scopes, expiry
+fbg auth logout    # removes the saved token
+```
+
+`fbg auth login` prompts with the echo muted, validates the token live against `/debug_token` + `/me`, and only saves it on success to `$XDG_CONFIG_HOME/fbg/credentials.json` (default `~/.config/fbg/credentials.json`, file `0600`). An invalid token writes nothing.
+
+Mint the token in Business Suite → Settings → Users → System Users → Admin → Generate Token, with the app added as App Admin. Scopes: `business_management`, `ads_management`, `pages_show_list`, `pages_read_engagement`, `pages_manage_ads`, `catalog_management`, `read_insights`.
+
+The token alone is enough — it is a discovery root, so a fresh session finds everything by walking the graph: `fbg GET /me`, `/me/businesses`, `/me/accounts`, `/me/adaccounts` → `/act_<id>/campaigns`. No ids are stored.
+
+**Not OAuth, on purpose.** Meta's only CLI-shaped OAuth (Device Login) hands back a ~60-day *expiring* user token; the non-expiring system-user token is the right credential for unattended automation. The saved file is plaintext at `0600` — stick to `META_ACCESS_TOKEN` if you would rather keep no token on disk.
 
 ## Why this is not an alias for `curl`
 
@@ -63,8 +77,8 @@ One seam. Everything else is a shell around it.
 
 | Part | File | Function |
 |---|---|---|
-| **seam** | `src/run.ts` | `run(argv, { fetch, env })` → `{ stdout, stderr, code }`. Pure: argv parsing, URL building, token injection, pagination, the error contract. All I/O is injected, so the whole CLI is testable with no network. |
-| **bin** | `bin/fbg.ts` | Writes the two streams, exits with the code. Nothing else. |
+| **seam** | `src/run.ts` | `run(argv, { fetch, env, io?, fs? })` → `{ stdout, stderr, code }`. Pure: argv parsing, URL building, token injection, pagination, the error contract, and the auth credential orchestration. All I/O is injected — network (`fetch`), tty (`io`), disk (`fs`) — so the whole CLI is testable with no network, tty, or disk. `io`/`fs` are optional; only the `auth` subcommands need them. |
+| **bin** | `bin/fbg.ts` | Constructs the real `io` (muted-echo tty prompt) and `fs` (credential-file adapter), calls `run`, writes the two streams, exits with the code. The only impure layer; no branching business logic. |
 
 Splitting the seam into `buildRequest` + `renderResponse` was considered and rejected: pagination couples them, and testing them apart leaves that coupling uncovered.
 
@@ -95,4 +109,4 @@ Splitting the seam into `buildRequest` + `renderResponse` was considered and rej
 
 ## Status
 
-Writes landed (#6). `src/run.ts` is the seam and `bin/fbg.ts` is its shell; `fbg GET <path>` reads and `fbg POST`/`DELETE <path>` write the Graph API end to end under the error contract. Non-GET verbs send flags as an `application/x-www-form-urlencoded` body, so the query string stays empty. Pagination landed (#7): `--paginate` follows `paging.next` to the end, one JSON document per page, each through the `renderResponse` checkpoint. The toolchain is scaffolded (#4) and the three gates run green. The spec is [issue #1](https://github.com/realroboto/meta-graph-cli/issues/1). Next: publish 1.0.0 to npm (#9).
+Writes landed (#6). `src/run.ts` is the seam and `bin/fbg.ts` is its shell; `fbg GET <path>` reads and `fbg POST`/`DELETE <path>` write the Graph API end to end under the error contract. Non-GET verbs send flags as an `application/x-www-form-urlencoded` body, so the query string stays empty. Pagination landed (#7): `--paginate` follows `paging.next` to the end, one JSON document per page, each through the `renderResponse` checkpoint. The toolchain is scaffolded (#4) and the three gates run green. Guided auth landed (#17): `fbg auth login|status|logout` save/introspect/remove a system-user token, env winning over a `0600` credential file, all through the seam with injected `io`/`fs`. The spec is [issue #1](https://github.com/realroboto/meta-graph-cli/issues/1). Next: publish 1.0.0 to npm (#9).
