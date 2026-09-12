@@ -108,6 +108,57 @@ test('a status at or above 400 exits non-zero with the error on stderr', async (
   assert.equal(res.stderr, JSON.stringify(err));
 });
 
+test('POST sends flags as a form body and leaves the query string empty', async () => {
+  const fetch = fakeFetch({ id: 'aud_1' });
+  const res = await run(['POST', '/act_123/customaudiences', '--name=X', '--subtype=LOOKALIKE'], {
+    fetch,
+    env: TOKEN,
+  });
+
+  const call = fetch.calls[0];
+  const url = new URL(call.url);
+  assert.equal(url.pathname, '/v26.0/act_123/customaudiences');
+  assert.equal(url.search, '');
+  assert.equal((call.init?.method ?? '').toUpperCase(), 'POST');
+  const body = new URLSearchParams(call.init?.body as URLSearchParams);
+  assert.equal(body.get('name'), 'X');
+  assert.equal(body.get('subtype'), 'LOOKALIKE');
+  assert.equal(res.code, 0);
+});
+
+test('DELETE works with no flags and sends nothing in the query string', async () => {
+  const fetch = fakeFetch({ success: true });
+  const res = await run(['DELETE', '/aud_1'], { fetch, env: TOKEN });
+
+  const call = fetch.calls[0];
+  assert.equal(new URL(call.url).search, '');
+  assert.equal((call.init?.method ?? '').toUpperCase(), 'DELETE');
+  assert.equal(res.code, 0);
+});
+
+test('DELETE carries flags in the form body, not the query string', async () => {
+  const fetch = fakeFetch({ success: true });
+  await run(['DELETE', '/act_123/adimages', '--hash=abc'], { fetch, env: TOKEN });
+
+  const call = fetch.calls[0];
+  assert.equal(new URL(call.url).search, '');
+  const body = new URLSearchParams(call.init?.body as URLSearchParams);
+  assert.equal(body.get('hash'), 'abc');
+});
+
+test('the error contract holds on writes: a 200-with-error POST exits non-zero', async () => {
+  const err = { message: 'Invalid parameter', type: 'OAuthException', code: 100 };
+  const fetch = fakeFetch({ error: err }, 200);
+  const res = await run(['POST', '/act_123/customaudiences', '--name=X'], {
+    fetch,
+    env: TOKEN,
+  });
+
+  assert.notEqual(res.code, 0);
+  assert.equal(res.stdout, '');
+  assert.equal(res.stderr, JSON.stringify(err));
+});
+
 test('--help states the command shape, exits 0, and never calls fetch', async () => {
   const fetch = neverFetch();
   const res = await run(['--help'], { fetch, env: {} });
