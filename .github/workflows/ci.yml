@@ -19,3 +19,4 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - run: pnpm build   # gate the publish-time compile (tsconfig.build.json) so a break surfaces here, not at npm pack

@@ -36,7 +36,7 @@ Three invariants this repo is built on. A change that breaks one is a design cha
 
 - **One seam.** Tests go through `run(argv, { fetch, env, io?, fs? })` with injected I/O. No test touches the network, the tty, or the disk. `bin/fbg.ts` stays the composition root: it builds the real `io`/`fs` adapters, streams out, exits with the code — no branching business logic.
 - **The error contract.** A Graph response carrying an `error` body — including one with HTTP 200 — exits non-zero with the `error` on stderr. Every change to response handling keeps a test on that case.
-- **No build step.** The package publishes `.ts` raw and Node strips types at runtime. `tsconfig.json` sets `erasableSyntaxOnly`, so write only erasable syntax: `enum`, `namespace`, and parameter properties pass typecheck and fail at runtime. A `dist/` appearing in the tree means the build came back.
+- **Buildless dev, publish-time compile.** Dev edits and runs `.ts` directly on Node type-stripping — no dev build, no bundle. Only `prepack` compiles `src`/`bin` to `dist/*.js` (`tsconfig.build.json`) for the tarball, because Node refuses to strip types under `node_modules`, so a raw-`.ts` dependency will not run once installed. `tsconfig.json` still sets `erasableSyntaxOnly`, so write only erasable syntax: `enum`, `namespace`, and parameter properties pass typecheck and fail at runtime. `dist/` is git-ignored — a committed `dist/` means someone built in dev.
 
 ## Commit format
 

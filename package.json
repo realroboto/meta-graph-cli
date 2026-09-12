@@ -1,12 +1,20 @@
 {
   "name": "meta-graph-cli",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "One passthrough CLI (fbg) for the Meta Graph API: Business Manager, system users, asset assignment, ad accounts, custom audiences, webhooks, Pages/IG. One token, every endpoint, read+write.",
   "type": "module",
+  "bin": {
+    "fbg": "dist/bin/fbg.js"
+  },
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": ">=24"
   },
   "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepack": "pnpm build",
     "test": "node --test",
     "typecheck": "tsc --noEmit",
     "lint": "biome check",
