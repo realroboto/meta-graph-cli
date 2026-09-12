@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+
+# tokens never land in the tree
+.env
+.env.*
+
+# no dist/ on purpose — the package publishes .ts raw and Node strips types at
+# runtime. If a build output ever appears here, the build step came back.
