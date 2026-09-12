@@ -95,4 +95,4 @@ Splitting the seam into `buildRequest` + `renderResponse` was considered and rej
 
 ## Status
 
-Skeleton. The spec is [issue #1](https://github.com/realroboto/meta-graph-cli/issues/1). The toolchain is scaffolded (#4) — `package.json`, `tsconfig.json`, `biome.json`, CI, and the three gates run green — but no `src/` or `bin/` source exists yet. Files named above under `src/` and `bin/` are the target layout, not the current one.
+Tracer landed (#5). `src/run.ts` is the seam and `bin/fbg.ts` is its shell; `fbg GET <path>` reads the Graph API end to end under the error contract. The toolchain is scaffolded (#4) and the three gates run green. The spec is [issue #1](https://github.com/realroboto/meta-graph-cli/issues/1). Next: writes (#6), pagination (#7).
