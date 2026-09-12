@@ -1,0 +1,39 @@
+{
+  "name": "meta-graph-cli",
+  "version": "0.1.0",
+  "description": "One passthrough CLI (fbg) for the Meta Graph API: Business Manager, system users, asset assignment, ad accounts, custom audiences, webhooks, Pages/IG. One token, every endpoint, read+write.",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check",
+    "format": "biome check --write"
+  },
+  "keywords": [
+    "meta",
+    "facebook",
+    "graph-api",
+    "marketing-api",
+    "business-manager",
+    "instagram",
+    "cli"
+  ],
+  "homepage": "https://github.com/realroboto/meta-graph-cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/realroboto/meta-graph-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/realroboto/meta-graph-cli/issues"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.13",
+    "@types/node": "^24.13.4",
+    "typescript": "^7.0.2"
+  },
+  "packageManager": "pnpm@12.3.4+sha512.961aa41fb077da3a04a441d9f8e15ebc0c96da8ef710b2eb67bf9ee7cb0610eabd48f1fd85f51cffe73846785fa0f87c56a3a872a1d893f8446741b5cce45457"
+}

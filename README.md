@@ -95,4 +95,4 @@ Splitting the seam into `buildRequest` + `renderResponse` was considered and rej
 
 ## Status
 
-Skeleton. The spec is [issue #1](https://github.com/realroboto/meta-graph-cli/issues/1); no source exists yet. Files named above under `src/`, `bin/`, and `docs/` are the target layout, not the current one.
+Skeleton. The spec is [issue #1](https://github.com/realroboto/meta-graph-cli/issues/1). The toolchain is scaffolded (#4) — `package.json`, `tsconfig.json`, `biome.json`, CI, and the three gates run green — but no `src/` or `bin/` source exists yet. Files named above under `src/` and `bin/` are the target layout, not the current one.
