@@ -88,6 +88,7 @@ Splitting the seam into `buildRequest` + `renderResponse` was considered and rej
 |---|---|
 | What the CLI does, decisions, the error contract, risks | **[docs/SPEC.md](docs/SPEC.md)** — behavior source of truth |
 | Who consumes this | [realroboto/vmCODE#267](https://github.com/realroboto/vmCODE/issues/267) — bakes `fbg` into the container image, retires the two Meta MCPs |
+| Ready-made commands for the Business-side gap | [skills/fbg/SKILL.md](skills/fbg/SKILL.md) — task→command gap map, each row grounded in Meta's reference |
 | Real commands and scripts | `package.json`, `fbg --help` |
 
 ## Contributing
