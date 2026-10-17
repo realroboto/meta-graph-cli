@@ -33,7 +33,7 @@ Type-stripping is unflagged from 22.18 onward, so 22.x would technically run the
 The credential is a Meta **system-user token**. Supply it either way — the env var wins over the saved file, so CI stays unchanged:
 
 ```bash
-export META_ACCESS_TOKEN=...   # Meta system user token (same token the official `meta` CLI reads)
+export META_ACCESS_TOKEN=...   # Meta system user token (official `meta` CLI reads same token as ACCESS_TOKEN)
 ```
 
 or save it once with the guided command:
@@ -111,3 +111,7 @@ Splitting the seam into `buildRequest` + `renderResponse` was considered and rej
 ## Status
 
 Writes landed (#6). `src/run.ts` is the seam and `bin/fbg.ts` is its shell; `fbg GET <path>` reads and `fbg POST`/`DELETE <path>` write the Graph API end to end under the error contract. Non-GET verbs send flags as an `application/x-www-form-urlencoded` body, so the query string stays empty. Pagination landed (#7): `--paginate` follows `paging.next` to the end, one JSON document per page, each through the `renderResponse` checkpoint. The toolchain is scaffolded (#4) and the three gates run green. Guided auth landed (#17): `fbg auth login|status|logout` save/introspect/remove a system-user token, env winning over a `0600` credential file, all through the seam with injected `io`/`fs`. The spec is [issue #1](https://github.com/realroboto/meta-graph-cli/issues/1). Published (#9): `meta-graph-cli@1.0.0` is live on npm (tag `latest`), installs clean, and runs `fbg --help` plus a live `GET` under the error contract — `prepack` emits `dist/` and `bin` maps `fbg` to the compiled entry. A companion gap-map skill ships at `skills/fbg/` (#20). The CLI is feature-complete against the spec.
+
+Known 1.0.0 defect: output larger than pipe buffer truncated when read through pipe; exit code stays 0. Cause: bin calls `process.exit()` before stdout drains. Workaround: redirect to file (`fbg … > f`). Fix ships in 2.0.0 (#23).
+
+Next: 2.0.0 epic [#22](https://github.com/realroboto/meta-graph-cli/issues/22) — curl request model, Meta paths, Ads CLI exit codes 0–5.
