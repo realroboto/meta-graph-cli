@@ -55,7 +55,7 @@ Applied once, at `renderResponse`. Every response path inherits it.
 
 The credential is a Meta **system-user token**, sent as `Authorization: Bearer`. It resolves from two sources, **env first, then file**:
 
-1. `META_ACCESS_TOKEN` — deliberately the **same** token Meta's official `meta` CLI reads, so a container that exports it behaves exactly as before.
+1. `META_ACCESS_TOKEN` — same token Meta's official `meta` CLI reads, there under env name `ACCESS_TOKEN`. Container wrapper maps one to other.
 2. A saved credential file at `$XDG_CONFIG_HOME/fbg/credentials.json` (falling back to `~/.config/fbg/credentials.json`), written by `fbg auth login`.
 
 A **missing token** (neither source) **fails with its own message and never calls `fetch`**.
